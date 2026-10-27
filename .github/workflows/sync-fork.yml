@@ -3,6 +3,16 @@ on:
   schedule:
     - cron: '0 6 * * *'  # daily 06:00 UTC
   workflow_dispatch:
+    inputs:
+      force:
+        # Manual full-chain rebuild (nextbsd-kernel#324): toolchain, then
+        # kernel and base, then kexts, contrib and userland, at the current
+        # releng/15.1 SHA. Use it when merges in a downstream repo (e.g. the
+        # kernel) should be carried into the kexts and images; merges there
+        # never start the chain themselves.
+        description: 'Rebuild the whole chain even if releng/15.1 did not move'
+        type: boolean
+        default: false
 
 # This is the ONLY workflow on this fork. It lives on the default branch (main)
 # because scheduled workflows only fire from the default branch, but its job
@@ -41,8 +51,10 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The chain starts only here: when releng/15.1 moved, or on a manual run
+      # with `force`. inputs.force is empty on scheduled runs.
       - name: Trigger toolchain rebuild
-        if: steps.after.outputs.changed == 'true'
+        if: steps.after.outputs.changed == 'true' || inputs.force
         run: |
           gh api repos/nextbsd/nextbsd-toolchain/dispatches \
             -f event_type=upstream-updated \
